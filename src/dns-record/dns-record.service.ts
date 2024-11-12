@@ -10,15 +10,15 @@ import {
 import { exec } from 'node:child_process';
 
 @Injectable()
-export class DnsValidatorService {
-  private readonly logger = new Logger(DnsValidatorService.name);
+export class DnsRecordService {
+  private readonly logger = new Logger(DnsRecordService.name);
 
-  async dnsLookup(hostname: string): Promise<LookupResponseDto> {
+  async dnsLookup(domainName: string): Promise<LookupResponseDto> {
     const pLookup = promisify(lookup);
     const data: LookupDto = {};
 
     try {
-      const resp = await pLookup(hostname);
+      const resp = await pLookup(domainName);
       data.address = resp.address;
       data.family = resp.family;
     } catch (err) {
@@ -33,12 +33,12 @@ export class DnsValidatorService {
     };
   }
 
-  async getSpfRecord(hostname: string): Promise<ResolveTxtResponseDto> {
+  async getSpfRecord(domainName: string): Promise<ResolveTxtResponseDto> {
     const pResolveTxt = promisify(resolveTxt);
     const data: ResolveTxtDto = {};
 
     try {
-      const records = await pResolveTxt(hostname);
+      const records = await pResolveTxt(domainName);
       data.txt =
         records.flat().find((record) => record.startsWith('v=spf1')) || null;
     } catch (err) {
@@ -54,11 +54,11 @@ export class DnsValidatorService {
     };
   }
 
-  async getDkimRecord(hostname: string): Promise<ResolveTxtResponseDto> {
+  async getDkimRecord(domainName: string): Promise<ResolveTxtResponseDto> {
     const pExec = promisify(exec);
 
-    const _getDkimRecord = async (selector: string, hostname: string) => {
-      const value = await pExec(`dig ${selector}._domainkey.${hostname} txt`);
+    const _getDkimRecord = async (selector: string, domainName: string) => {
+      const value = await pExec(`dig ${selector}._domainkey.${domainName} txt`);
       if (value.stdout.indexOf('v=DKIM1') > -1) {
         return value.stdout
           .substring(
@@ -71,9 +71,9 @@ export class DnsValidatorService {
     };
 
     const [s1, s2, s3] = await Promise.all([
-      _getDkimRecord('default', hostname),
-      _getDkimRecord('google', hostname),
-      _getDkimRecord('selector1', hostname),
+      _getDkimRecord('default', domainName),
+      _getDkimRecord('google', domainName),
+      _getDkimRecord('selector1', domainName),
     ]);
 
     return {
@@ -83,12 +83,12 @@ export class DnsValidatorService {
     };
   }
 
-  async getDmarcRecord(hostname: string): Promise<ResolveTxtResponseDto> {
+  async getDmarcRecord(domainName: string): Promise<ResolveTxtResponseDto> {
     const pResolveTxt = promisify(resolveTxt);
     const data: ResolveTxtDto = {};
 
     try {
-      const records = await pResolveTxt(`_dmarc.${hostname}`);
+      const records = await pResolveTxt(`_dmarc.${domainName}`);
       data.txt =
         records.flat().find((record) => record.startsWith('v=DMARC1')) || null;
     } catch (err) {
@@ -101,6 +101,31 @@ export class DnsValidatorService {
       statusCode: HttpStatus.OK,
       message: 'OK',
       data,
+    };
+  }
+
+  async getFullRecord(domainName: string) {
+    const stringOrNull = (value: ResolveTxtResponseDto): string | null => {
+      if (value.data) {
+        return value.data.txt;
+      }
+      return null;
+    };
+
+    const [spf, dkim, dmarc] = await Promise.all([
+      this.getSpfRecord(domainName).then(stringOrNull),
+      this.getDkimRecord(domainName).then(stringOrNull),
+      this.getDmarcRecord(domainName).then(stringOrNull),
+    ]);
+
+    return {
+      statusCode: HttpStatus.OK,
+      message: 'OK',
+      data: {
+        spf,
+        dkim,
+        dmarc,
+      },
     };
   }
 }
