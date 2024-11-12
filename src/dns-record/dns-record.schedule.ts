@@ -4,17 +4,21 @@ import { TimeIntervalInMs } from 'src/common/const';
 import { DnsRecordService } from './dns-record.service';
 import { Supabase } from 'src/common/supabase';
 import { DnsRecord, UpdateDnsRecord } from './dns-record.type';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class DnsRecordSchedule {
   constructor(
     private readonly dnsRecordService: DnsRecordService,
     private readonly supabase: Supabase,
+    private readonly configService: ConfigService,
   ) {}
 
   private readonly logger = new Logger(DnsRecordSchedule.name);
   private isCheckDnsRecordFinished = true;
-  private readonly batchSize = 10;
+  private readonly batchSize = +this.configService.get(
+    'DNS_RECORD_SCHEDULE_BATCH_SIZE',
+  );
   private readonly tableName = 'dns_record';
 
   @Interval(TimeIntervalInMs.ONE_MINUTE)
