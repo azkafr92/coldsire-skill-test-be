@@ -1,7 +1,7 @@
 import { Controller, Get, Query, Res, Version } from '@nestjs/common';
 import { Response } from 'express';
 import { DnsRecordService } from './dns-record.service';
-import { GetByDomainNameDto } from './dto/request.dto';
+import { GetAllRequestDto } from './dto/request.dto';
 
 @Controller('dns-record')
 export class DnsRecordController {
@@ -9,8 +9,9 @@ export class DnsRecordController {
 
   @Version('1')
   @Get()
-  async find(@Query() dto: GetByDomainNameDto, @Res() res: Response) {
-    const resp = await this.dnsRecordService.getFullRecord(dto.domainName);
+  async getAll(@Query() dto: GetAllRequestDto, @Res() res: Response) {
+    console.debug(dto);
+    const resp = await this.dnsRecordService.getAll(dto);
     res.status(resp.statusCode).json(resp);
   }
 }

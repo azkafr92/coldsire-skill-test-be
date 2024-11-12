@@ -1,4 +1,5 @@
 import { ResponseDto } from 'src/common/response.dto';
+import { DnsRecord } from '../dns-record.type';
 
 export interface LookupDto {
   err?: NodeJS.ErrnoException;
@@ -14,3 +15,5 @@ export interface ResolveTxtDto {
 }
 
 export interface ResolveTxtResponseDto extends ResponseDto<ResolveTxtDto> {}
+
+export interface GetAllResponseDto extends ResponseDto<DnsRecord[]> {}

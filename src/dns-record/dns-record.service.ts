@@ -1,17 +1,54 @@
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
+import { exec } from 'node:child_process';
 import { lookup, resolveTxt } from 'node:dns';
 import { promisify } from 'node:util';
+import { Supabase } from 'src/common/supabase';
+import { GetAllRequestDto } from './dto/request.dto';
 import {
+  GetAllResponseDto,
   LookupDto,
   LookupResponseDto,
   ResolveTxtDto,
   ResolveTxtResponseDto,
 } from './dto/response.dto';
-import { exec } from 'node:child_process';
 
 @Injectable()
 export class DnsRecordService {
+  constructor(private readonly supabase: Supabase) {}
+
   private readonly logger = new Logger(DnsRecordService.name);
+
+  async getAll(dto: GetAllRequestDto): Promise<GetAllResponseDto> {
+    const start = (dto.page - 1) * dto.page_size;
+    const end = dto.page * dto.page_size - 1;
+
+    const { data, error, count } = await this.supabase
+      .getClient()
+      .from('dns_record')
+      .select('*', { count: 'exact' })
+      .ilike('name', `%${dto.name || ''}%`)
+      .order('id', { ascending: true })
+      .range(start, end);
+
+    if (error) {
+      return {
+        statusCode: +error.code,
+        message: error.message,
+      };
+    }
+
+    return {
+      statusCode: HttpStatus.OK,
+      message: 'OK',
+      data,
+      meta: {
+        total_items: count,
+        page: dto.page,
+        page_size: dto.page_size,
+        total_pages: Math.ceil(count / dto.page_size),
+      },
+    };
+  }
 
   async dnsLookup(domainName: string): Promise<LookupResponseDto> {
     const pLookup = promisify(lookup);
