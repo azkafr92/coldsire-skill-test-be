@@ -122,6 +122,7 @@ export class DnsRecordService {
       statusCode: HttpStatus.OK,
       message: 'OK',
       data: {
+        domainName,
         spf,
         dkim,
         dmarc,

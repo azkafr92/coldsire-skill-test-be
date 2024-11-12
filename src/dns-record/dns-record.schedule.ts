@@ -2,41 +2,66 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { TimeIntervalInMs } from 'src/common/const';
 import { DnsRecordService } from './dns-record.service';
+import { Supabase } from 'src/common/supabase';
+import { DnsRecord, UpdateDnsRecord } from './dns-record.type';
 
 @Injectable()
 export class DnsRecordSchedule {
-  constructor(private readonly dnsRecordService: DnsRecordService) {}
+  constructor(
+    private readonly dnsRecordService: DnsRecordService,
+    private readonly supabase: Supabase,
+  ) {}
 
   private readonly logger = new Logger(DnsRecordSchedule.name);
   private isCheckDnsRecordFinished = true;
+  private readonly batchSize = 10;
+  private readonly tableName = 'dns_record';
 
-  private readonly domainNameList = [
-    'getempoweredoutreachpros.com',
-    'altshere.com',
-    'internetmarketeersweb.com',
-    'trypresspulseai.com',
-    'realtaxheroes.com',
-    'atmapartner.com',
-    'getprohousekeepers.com',
-    'swiftygrowth360.com',
-    '247taxheroes.co.uk',
-    'seoguruatlantanet.com',
-  ];
-
-  @Interval(TimeIntervalInMs.TEN_SECONDS)
+  @Interval(TimeIntervalInMs.ONE_MINUTE)
   checkDnsRecord() {
     if (this.isCheckDnsRecordFinished) {
+      this.logger.log('Start checking DNS record');
       this.isCheckDnsRecordFinished = false;
 
-      for (let i = 0; i < this.domainNameList.length; i++) {
-        this.dnsRecordService
-          .getFullRecord(this.domainNameList[i])
-          .then((resp) => {
-            this.logger.debug(JSON.stringify(resp));
-          });
-      }
-
-      this.isCheckDnsRecordFinished = true;
+      this.supabase
+        .getClient()
+        .from(this.tableName)
+        .select<'id,name', DnsRecord>('id,name')
+        .is('deleted_at', null)
+        .order('updated_at', { ascending: true })
+        .limit(this.batchSize)
+        .then((resp) => {
+          return Promise.all(
+            resp.data.map(async (value) => {
+              const resp = await this.dnsRecordService.getFullRecord(
+                value.name,
+              );
+              this.logger.debug(JSON.stringify(resp));
+              return resp;
+            }),
+          );
+        })
+        .then(async (resp) => {
+          for (let i = 0; i < resp.length; i++) {
+            const { error } = await this.supabase
+              .getClient()
+              .from(this.tableName)
+              .update<UpdateDnsRecord>({
+                spf: resp[i].data.spf,
+                dkim: resp[i].data.dkim,
+                dmarc: resp[i].data.dmarc,
+                updated_at: new Date(),
+              })
+              .eq('name', resp[i].data.domainName);
+            if (error) {
+              this.logger.error(error);
+            }
+          }
+        })
+        .then(() => {
+          this.logger.log('Finish checking DNS Record');
+          this.isCheckDnsRecordFinished = true;
+        });
     }
   }
 }

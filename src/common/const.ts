@@ -1,5 +1,6 @@
 export enum TimeIntervalInMs {
   ONE_SECOND = 1000,
+  FIVE_SECONDS = ONE_SECOND * 5,
   TEN_SECONDS = ONE_SECOND * 10,
   ONE_MINUTE = ONE_SECOND * 60,
 }
