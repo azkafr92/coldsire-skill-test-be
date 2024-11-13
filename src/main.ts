@@ -13,6 +13,6 @@ async function bootstrap() {
   app.setGlobalPrefix('api', { exclude: ['ping'] });
   app.useGlobalInterceptors(new LoggingInterceptor());
 
-  await app.listen(configService.get<string>('PORT'));
+  await app.listen(configService.get<string>('PORT'), '0.0.0.0');
 }
 bootstrap();
